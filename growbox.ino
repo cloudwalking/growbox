@@ -34,7 +34,7 @@ void setup() {
 
   pinMode(LED_BUILTIN, OUTPUT);
   pinMode(PWM_PIN, OUTPUT);
- `
+
   analogWriteRange(100);
   analogWriteFreq(25000);
   analogWrite(PWM_PIN, 15);
