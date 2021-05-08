@@ -12,6 +12,16 @@
 #define WAKE_TIME 8
 #define AWAKE_DURATION_HOURS 14
 
+// i2c and PWM appear to compete, so we can only do one job at a time.
+typedef enum {
+  // Lighting job uses a rely via i2c to control the lights.
+  LIGHT_JOB,
+  // Fan job uses PWM to control fan speed.
+  FAN_JOB
+} job_t;
+
+job_t _job = FAN_JOB;
+
 unsigned long _currentTime = 0;
 unsigned long _blinkTime = 0;
 unsigned long _ntpSyncTime = 0;
@@ -33,11 +43,13 @@ void setup() {
   _relay.turnRelayOff();
 
   pinMode(LED_BUILTIN, OUTPUT);
-  pinMode(PWM_PIN, OUTPUT);
 
-  analogWriteRange(100);
-  analogWriteFreq(25000);
-  analogWrite(PWM_PIN, 15);
+  if (_job == FAN_JOB) {
+    pinMode(PWM_PIN, OUTPUT);
+    analogWriteRange(100);
+    analogWriteFreq(25000);
+    analogWrite(PWM_PIN, 15);
+  }
 
   WiFi.begin("cocacola", "football");
 }
@@ -59,7 +71,9 @@ void loop() {
       _timeClient.update();
 
       printInfo();
-      updateRelay();
+      if (_job == LIGHT_JOB) {
+        updateRelay();
+      }
     }
   }
 }
@@ -74,10 +88,10 @@ void updateRelay() {
   int hour = _timeClient.getHours();
   if (hour >= WAKE_TIME && hour < WAKE_TIME + AWAKE_DURATION_HOURS) {
     _relay.turnRelayOn();
-    Serial.println("Relay ON");
+    Serial.println("Turn relay ON");
   } else {
     _relay.turnRelayOff();
-    Serial.println("Relay OFF");
+    Serial.println("Turn relay OFF");
   }
   Serial.print("Relay state: ");
   Serial.println(_relay.getState());
