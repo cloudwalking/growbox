@@ -12,7 +12,7 @@
 #define WAKE_TIME 8
 #define AWAKE_DURATION_HOURS 14
 
-// i2c and PWM appear to compete, so we can only do one job at a time.
+// i2c and PWM appear to compete, so we can only do one job at a time. (???)
 typedef enum {
   // Lighting job uses a rely via i2c to control the lights.
   LIGHT_JOB,
@@ -20,7 +20,7 @@ typedef enum {
   FAN_JOB
 } job_t;
 
-job_t _job = FAN_JOB;
+job_t _job = LIGHT_JOB;
 
 unsigned long _currentTime = 0;
 unsigned long _blinkTime = 0;
@@ -31,18 +31,22 @@ WiFiUDP _ntpUDP;
 NTPClient _timeClient(_ntpUDP, "pool.ntp.org", TIME_OFFSET);
 
 void setup() {
-  delay(250);
-
   Serial.begin(115200);
-  Wire.begin();
-  if (_relay.begin()) {
-    Serial.println("Connected to relay.");
-  } else {
-    Serial.println("RELAY NOT FOUND");
-  }
-  _relay.turnRelayOff();
-
   pinMode(LED_BUILTIN, OUTPUT);
+  digitalWrite(LED_BUILTIN, true);
+
+  delay(250);
+  Serial.println("********");
+
+  if (_job == LIGHT_JOB) {
+    Wire.begin();
+    if (_relay.begin()) {
+      Serial.println("Connected to relay.");
+    } else {
+      Serial.println("RELAY NOT FOUND");
+    }
+    _relay.turnRelayOff();
+  }
 
   if (_job == FAN_JOB) {
     pinMode(PWM_PIN, OUTPUT);
@@ -76,21 +80,50 @@ void loop() {
       }
     }
   }
+  // Delay, allowing esp8266 to do other stuff.
+  delay(100);
 }
 
 void blinkLED() {
-  bool isWifiConnected = WiFi.status() == WL_CONNECTED;
-  long blinkCycleMS = 1000 * (isWifiConnected ? 2 : 0.5);
+  const float wifiErrorDutyCycle = 0.5;
+  const float relayErrorDutyCycle = 1;
+  const float nominalDutyCycle = 4;
+
+  float dutyCycle = nominalDutyCycle;
+  if (WiFi.status() != WL_CONNECTED) {
+    dutyCycle = wifiErrorDutyCycle;
+  }
+  if (_job == LIGHT_JOB && _relay.getState() == 255) {
+    // Sometimes this sparkfun qwiic relay returns 255 for its state, which is undocumented and seems
+    // to be invalid. Requires a power cycle to return to normal operation.
+    dutyCycle = relayErrorDutyCycle;
+  }
+
+  long blinkCycleMS = 1000 * dutyCycle;
   digitalWrite(LED_BUILTIN, _currentTime % blinkCycleMS > blinkCycleMS / 2);
 }
 
 void updateRelay() {
   int hour = _timeClient.getHours();
-  if (hour >= WAKE_TIME && hour < WAKE_TIME + AWAKE_DURATION_HOURS) {
-    _relay.turnRelayOn();
+  int sleepTime = WAKE_TIME + AWAKE_DURATION_HOURS;
+  int relayState = _relay.getState();
+  
+  Serial.print("wake time: ");
+  Serial.print(WAKE_TIME);
+  Serial.print(", sleep time: ");
+  Serial.print(sleepTime);
+  Serial.print(", current time: ");
+  Serial.println(hour);
+  
+  if (hour >= WAKE_TIME && hour < sleepTime) {
+    if (relayState != 1) {
+      _relay.turnRelayOn();
+    }
     Serial.println("Turn relay ON");
   } else {
-    _relay.turnRelayOff();
+    if (relayState != 0) {
+      _relay.turnRelayOff();
+    }
     Serial.println("Turn relay OFF");
   }
   Serial.print("Relay state: ");
