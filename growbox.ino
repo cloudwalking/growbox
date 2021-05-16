@@ -87,20 +87,25 @@ void loop() {
 void blinkLED() {
   const float wifiErrorDutyCycle = 0.5;
   const float relayErrorDutyCycle = 1;
-  const float nominalDutyCycle = 4;
+  const float errorDivisor = 2;
+  const float nominalDutyCycle = 10;
+  const float nominalDivisor = nominalDutyCycle * 2;
 
   float dutyCycle = nominalDutyCycle;
+  float divisor = nominalDivisor;
   if (WiFi.status() != WL_CONNECTED) {
     dutyCycle = wifiErrorDutyCycle;
+    divisor = errorDivisor;
   }
   if (_job == LIGHT_JOB && _relay.getState() == 255) {
     // Sometimes this sparkfun qwiic relay returns 255 for its state, which is undocumented and seems
     // to be invalid. Requires a power cycle to return to normal operation.
     dutyCycle = relayErrorDutyCycle;
+    divisor = errorDivisor;
   }
 
   long blinkCycleMS = 1000 * dutyCycle;
-  digitalWrite(LED_BUILTIN, _currentTime % blinkCycleMS > blinkCycleMS / 2);
+  digitalWrite(LED_BUILTIN, _currentTime % blinkCycleMS > blinkCycleMS / divisor);
 }
 
 void updateRelay() {
