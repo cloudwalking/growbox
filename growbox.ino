@@ -12,7 +12,7 @@
 #define WAKE_TIME 8
 #define AWAKE_DURATION_HOURS 14
 
-// i2c and PWM appear to compete, so we can only do one job at a time. (???)
+// i2c and PWM appear to compete, so we can only do one job at a time.
 typedef enum {
   // Lighting job uses a rely via i2c to control the lights.
   LIGHT_JOB,
@@ -98,8 +98,8 @@ void blinkLED() {
     divisor = errorDivisor;
   }
   if (_job == LIGHT_JOB && _relay.getState() == 255) {
-    // Sometimes this sparkfun qwiic relay returns 255 for its state, which is undocumented and seems
-    // to be invalid. Requires a power cycle to return to normal operation.
+    // Sometimes this sparkfun qwiic relay returns 255 for its state, which indicates the
+    // relay is not connected or malfunctioning. e.g. if you've changed the PWM settings :)
     dutyCycle = relayErrorDutyCycle;
     divisor = errorDivisor;
   }
